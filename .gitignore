@@ -1,0 +1,107 @@
+# ==============================================================================
+# Unity
+# ==============================================================================
+# Generated / machine-local folders — never commit these.
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Asset meta data should only be ignored when the corresponding asset is also ignored.
+!/[Aa]ssets/**/*.meta
+
+# Unity3D-generated meta files for files outside Assets/ are noise.
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Unity3D generated file on crash reports.
+sysinfo.txt
+
+# Builds / packaged output.
+*.apk
+*.aab
+*.unitypackage
+*.app
+*.exe
+*.x86
+*.x86_64
+crashlytics-build.properties
+
+# Asset Store Tools plugin.
+/[Aa]ssets/[Aa]ssetStoreTools*
+
+# AssetBundles.
+/[Aa]ssets/[Aa]ssetBundles/
+/[Aa]ssets/[Ss]treamingAssets/[Aa]ssetBundles/
+
+# ==============================================================================
+# Visual Studio / VS Code / Rider — IDE & generated solution files
+# ==============================================================================
+# Unity regenerates these from the project; keep them out of the repo.
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Visual Studio cache directory.
+.vs/
+
+# VS Code: ignore the volatile/per-machine bits, keep shared config.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# Rider.
+.idea/
+
+# ==============================================================================
+# OS cruft
+# ==============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+[Tt]humbs.db
+[Dd]esktop.ini
+
+# ==============================================================================
+# Dev-only tooling — restorable, kept out of the repo (see README "Local setup")
+# ==============================================================================
+# Unity MCP plugin's vendored NuGet DLLs (~18 MB, third-party, editor-only tooling
+# that the game itself never references). Restored automatically when the
+# com.ivanmurzak.unity.mcp package resolves. Listed AFTER the Assets/**/*.meta
+# re-include above so the orphaned .meta files are ignored too.
+/[Aa]ssets/[Pp]lugins/[Nn]u[Gg]et/
+
+# Claude Code local settings & generated skill docs (machine-specific or
+# regenerable) are NOT committed — but the hand-written, shared custom skills ARE.
+# Pattern: ignore everything in .claude/, then re-include only the three custom
+# skill folders (release / work-issue / list-issues). Git can't re-include a path
+# whose parent dir is ignored, so each level is un-ignored before the next is
+# re-ignored. The ~75 auto-generated MCP skill docs stay ignored.
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/release/
+!.claude/skills/work-issue/
+!.claude/skills/list-issues/

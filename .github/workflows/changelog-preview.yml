@@ -1,0 +1,72 @@
+name: Changelog preview
+
+# Previews the CHANGELOG entries a PR would add (from its Conventional Commits)
+# as a sticky PR comment, and fails the check if any commit subject doesn't
+# follow the convention OR the PR doesn't update CHANGELOG.md. Non-destructive:
+# nothing is pushed back to the branch. This is the ONLY workflow that runs on a
+# PR — the test + security gates run at /release time. See CLAUDE.md →
+# "Commits, changelog & release" and scripts/changelog-preview.mjs.
+
+on:
+  pull_request:
+    # labeled/unlabeled are included so toggling the 'skip-changelog' label
+    # re-evaluates the "Require CHANGELOG update" gate with a fresh payload —
+    # the gate reads labels from the event payload, so without these a label
+    # added after the PR is opened would never clear the (stale) failing check.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches: [main]
+
+# Least privilege: read the code, comment on the PR. No write to contents.
+permissions:
+  contents: read
+  pull-requests: write
+
+# One run per PR; cancel superseded runs when new commits are pushed.
+concurrency:
+  group: changelog-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog preview
+        id: gen
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/changelog-preview.mjs
+
+      - name: Post / update sticky preview comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh pr comment "${{ github.event.pull_request.number }}"
+          --body-file changelog-preview.md
+          --edit-last --create-if-none
+
+      - name: Enforce Conventional Commits
+        if: steps.gen.outputs.violations != '0'
+        run: |
+          echo "::error::${{ steps.gen.outputs.violations }} commit(s) do not follow Conventional Commits — see the PR comment for the offenders."
+          exit 1
+
+      # Every user-visible change updates CHANGELOG.md ## [Unreleased].
+      # Bypass for changes a user could never notice by adding the 'skip-changelog' label.
+      - name: Require CHANGELOG update
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-changelog') }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -qx 'CHANGELOG.md'; then
+            echo "CHANGELOG.md updated."
+          else
+            echo "::error::This PR does not update CHANGELOG.md. Add your entry under '## [Unreleased]' (CLAUDE.md → Commits, changelog & release), or add the 'skip-changelog' label for changes a user could never notice."
+            exit 1
+          fi

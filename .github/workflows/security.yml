@@ -1,0 +1,209 @@
+name: Security scans
+
+# Runs four security scanners ON DEMAND (workflow_dispatch only) and, on failure,
+# opens/updates one richly-detailed BUG issue assigned to KingMordas for a later fix.
+#
+# This workflow does NOT run per-PR: to conserve Actions minutes on a free-tier public
+# repo the security gate runs at RELEASE time. The `/release` skill is the single quality
+# gate — it dispatches this workflow against `main` (`gh workflow run security.yml --ref
+# main`), watches it to completion, and drives any failure (incl. the BUG issue opened
+# below) to green before tagging the release. See .claude/skills/release/SKILL.md.
+#
+# Design (adapted for a Unity/C# repo):
+#   • ONE consolidated job, not N parallel + an aggregator — the biggest CI-minutes
+#     saver on a free-tier repo (Actions bills per-job, rounded up to the whole
+#     minute, + ~15s VM spin-up each). One VM → one round-up.
+#   • Tools installed DIRECTLY from their official sources (pip/release-binary +
+#     checksum) — only GitHub's own actions are used, preserving the deliberate
+#     zero-third-party-action supply-chain stance.
+#   • Every scanner runs fail-soft (exit code captured, never aborts the others) so a
+#     single run yields ALL findings.
+#   • The .NET SCA scanner is intentionally omitted: the GAME references no runtime
+#     NuGet (the MCP plugin's vendored DLLs are editor-only and git-ignored), so there
+#     is nothing for `dotnet list --vulnerable` to scan.
+
+on:
+  workflow_dispatch:
+
+# Least privilege: read code, open/update the BUG issue on failure.
+permissions:
+  contents: read
+  issues: write
+
+# One run per ref; drop superseded runs on rapid pushes (a direct minute saver).
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+# Pinned tool versions — bump these single lines to update (gitleaks/trivy need their
+# matching sha256). Semgrep + Checkov are pinned in the pip install below.
+env:
+  TRIVY_VERSION: "0.71.2"
+  TRIVY_SHA256: "0510e71e2fd39bf863856d499c8dc19feb4e7336546394c502a8f5cc7ab27460"
+  GITLEAKS_VERSION: "8.30.1"
+  GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+  SEMGREP_VERSION: "1.167.0"
+  CHECKOV_VERSION: "3.3.1"
+  ARTIFACT_NAME: "security-reports"
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history for secret scanning)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Compute cache date (rotates the Trivy DB daily)
+        id: cachedate
+        run: echo "d=$(date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pip wheels (semgrep + checkov)
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: pip-sec-${{ env.SEMGREP_VERSION }}-${{ env.CHECKOV_VERSION }}
+
+      - name: Cache Trivy vuln DB
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ steps.cachedate.outputs.d }}
+          restore-keys: trivy-db-
+
+      - name: Install scanners (official sources, pinned)
+        run: |
+          set -euo pipefail
+          mkdir -p security-reports "$HOME/.local/bin"
+
+          # Semgrep + Checkov from PyPI (official), pinned.
+          pip install --quiet "semgrep==${SEMGREP_VERSION}" "checkov==${CHECKOV_VERSION}"
+
+          # Trivy official release tarball + sha256 verification (no curl|sh).
+          TV_TGZ="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -sfL -o "$TV_TGZ" \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${TV_TGZ}"
+          echo "${TRIVY_SHA256}  ${TV_TGZ}" | sha256sum -c -
+          tar -xzf "$TV_TGZ" -C "$HOME/.local/bin" trivy
+          rm -f "$TV_TGZ"
+
+          # Gitleaks official release binary + sha256 verification.
+          GL_TGZ="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sfL -o "$GL_TGZ" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${GL_TGZ}"
+          echo "${GITLEAKS_SHA256}  ${GL_TGZ}" | sha256sum -c -
+          tar -xzf "$GL_TGZ" -C "$HOME/.local/bin" gitleaks
+          rm -f "$GL_TGZ"
+
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Determine secret-scan commit range
+        id: range
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ZERO="0000000000000000000000000000000000000000"
+          if [ "${PUSH_BEFORE:-}" != "$ZERO" ] && [ -n "${PUSH_BEFORE:-}" ]; then
+            echo "opts=--log-opts=${PUSH_BEFORE}..${PUSH_AFTER}" >> "$GITHUB_OUTPUT"
+          else
+            # workflow_dispatch / first push: no usable base — scan the full history.
+            echo "opts=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run scanners (fail-soft) + write meta
+        env:
+          # Token-free Semgrep CE: rules come from SEMGREP_RULES, never an app token.
+          SEMGREP_RULES: >-
+            p/security-audit
+            p/secrets
+            p/owasp-top-ten
+          GL_RANGE: ${{ steps.range.outputs.opts }}
+        run: |
+          set +e  # fail-soft: capture each tool's exit, never abort the others
+          R=security-reports
+
+          SEMGREP_CMD="semgrep ci --json --output $R/semgrep.json"
+          $SEMGREP_CMD ; SEMGREP_EXIT=$?
+
+          TRIVY_CMD="trivy fs . --scanners vuln,misconfig --severity HIGH,CRITICAL --format json --output $R/trivy.json --no-progress --exit-code 1"
+          $TRIVY_CMD ; TRIVY_EXIT=$?
+
+          GITLEAKS_CMD="gitleaks detect --redact --report-format json --report-path $R/gitleaks.json $GL_RANGE --exit-code 1"
+          $GITLEAKS_CMD ; GITLEAKS_EXIT=$?
+
+          # No IaC files in the repo → scan the GitHub Actions workflows.
+          CHECKOV_CMD="checkov -d .github/workflows --framework github_actions --compact --quiet -o json"
+          $CHECKOV_CMD > "$R/checkov.json" ; CHECKOV_EXIT=$?
+
+          # Tool versions (one line each) for the report.
+          SEMGREP_VER=$(semgrep --version 2>/dev/null | head -n1)
+          TRIVY_VER=$(trivy --version 2>/dev/null | head -n1 | sed 's/Version: //')
+          GITLEAKS_VER=$(gitleaks version 2>/dev/null | head -n1)
+          CHECKOV_VER=$(checkov --version 2>/dev/null | head -n1)
+
+          jq -n \
+            --arg sv "$SEMGREP_VER" --arg sc "$SEMGREP_CMD" --argjson se "${SEMGREP_EXIT:-0}" \
+            --arg tv "$TRIVY_VER"   --arg tc "$TRIVY_CMD"   --argjson te "${TRIVY_EXIT:-0}" \
+            --arg gv "$GITLEAKS_VER" --arg gc "$GITLEAKS_CMD" --argjson ge "${GITLEAKS_EXIT:-0}" \
+            --arg cv "$CHECKOV_VER" --arg cc "$CHECKOV_CMD" --argjson ce "${CHECKOV_EXIT:-0}" \
+            '{
+               semgrep:  {version:$sv, command:$sc, exit:$se},
+               trivy:    {version:$tv, command:$tc, exit:$te},
+               gitleaks: {version:$gv, command:$gc, exit:$ge},
+               checkov:  {version:$cv, command:$cc, exit:$ce}
+             }' > "$R/meta.json"
+
+          echo "Exits: semgrep=$SEMGREP_EXIT trivy=$TRIVY_EXIT gitleaks=$GITLEAKS_EXIT checkov=$CHECKOV_EXIT"
+          exit 0  # the aggregation step decides pass/fail
+
+      - name: Build report (comment + issue)
+        id: report
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: node scripts/security-report.mjs
+
+      - name: Upload full raw reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: security-reports/
+          retention-days: 90
+
+      - name: Open / update BUG issue (on failure)
+        if: steps.report.outputs.failed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.report.outputs.issue_title }}
+        run: |
+          set -euo pipefail
+          gh label create bug --description "Something isn't working" --color d73a4a 2>/dev/null || true
+
+          # Dedup: an open issue with the same title is updated, not duplicated.
+          EXISTING=$(gh issue list --state open --label bug --search "in:title \"$TITLE\"" \
+            --json number,title --jq ".[] | select(.title == \"$TITLE\") | .number" | head -n1)
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body-file security-issue.md
+            echo "Updated existing issue #$EXISTING."
+          else
+            gh issue create --title "$TITLE" --body-file security-issue.md \
+              --label bug --assignee KingMordas
+            echo "Opened a new issue."
+          fi
+
+      - name: Fail the check if any scanner reported findings
+        if: steps.report.outputs.failed == 'true'
+        run: |
+          echo "::error::Security scans reported findings — see the auto-opened BUG issue and the security-reports artifact."
+          exit 1
