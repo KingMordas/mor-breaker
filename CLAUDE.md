@@ -40,7 +40,7 @@ To keep the repo minimal, [`.gitignore`](.gitignore) excludes restorable/dev-onl
 
 If you change what is/isn't ignored, update the README "Local setup" section to match.
 
-The three **shared custom skills** — `release`, `work-issue`, `list-issues` (under
+The two **shared custom skills** — `release` and `perform-activity` (under
 `.claude/skills/`) — are the exception: they are committed (the `.gitignore` re-includes
 exactly those folders). The auto-generated MCP skill docs and local settings remain ignored.
 
@@ -48,7 +48,16 @@ exactly those folders). The auto-generated MCP skill docs and local settings rem
 
 This repo follows a lightweight, GitHub-driven workflow.
 There is no server to deploy to: a **release** is a GitHub Release carrying two build artifacts
-(the Windows and WebGL ZIPs). Three skills drive it — `/work-issue`, `/list-issues`, `/release`.
+(the Windows and WebGL ZIPs). Two skills drive it — `/perform-activity` (do a piece of work →
+optional branch + PR → confirm-merge) and `/release` (gate → version → build → GitHub Release).
+
+> **No issue-driven tooling (deliberate, security).** Earlier drafts drove work from GitHub
+> issues via `/work-issue` and `/list-issues`. Those were **removed**: on a public repo, issue
+> and comment bodies are attacker-controllable, and ingesting them into the agent's context is a
+> **prompt-injection vector** (a spammer commenting on an issue could smuggle instructions). The
+> workflow is now driven by **trusted, locally-typed prompts** through `/perform-activity` — the
+> agent reads **no** issue/comment/attachment text. GitHub Issues may still be used by humans for
+> bug reports; the *agent* simply never auto-ingests them.
 
 1. **Conventional Commits.** Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org/):
    `type(scope): description` — imperative, ~50 chars, no trailing period (e.g.
@@ -58,8 +67,8 @@ There is no server to deploy to: a **release** is a GitHub Release carrying two 
    change uses `type(scope)!:` and/or a `BREAKING CHANGE:` footer. After a blank line comes a
    **body** explaining *what* changed **and why** (bullets for several items), flagging any
    guardrail-relevant touches (a new dependency, a privacy/data-flow change, a gameplay
-   doc-comment edit, `CLAUDE.md`/`README.md` doc updates). Issue-worked commits end with
-   `Closes #<n>` then the `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>` trailer.
+   doc-comment edit, `CLAUDE.md`/`README.md` doc updates). Commits end with the
+   `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>` trailer.
    The conventional `type`/breaking-marker **drives the SemVer bump** — but it is **not** the
    changelog of record.
 
@@ -88,14 +97,16 @@ There is no server to deploy to: a **release** is a GitHub Release carrying two 
    CI; Unity is the build system). `main` is configured **squash-only** and **branch-protected** to
    require the `preview` check, so it stays one parseable Conventional Commit per PR.
 
-5. **Issue → PR lifecycle (labels are the source of truth).** `/work-issue <n>` branches from
-   `origin/main`, implements honouring every guardrail here, commits + opens a structured PR (title
-   = a Conventional-Commit subject), waits for the `preview` check, then — **after you confirm** —
-   squash-merges to `main`. It stamps **`in-progress`** when it starts and flips to
-   **`awaiting-release`** only when the work is merged/verified. `/release` reads `awaiting-release`
-   to reconcile + close every issue shipped in the release. (`/work-issue <n> false` works in the
-   tree without committing; it still flips the labels.) The harness blocks an agent from
-   self-merging its own PR, so the merge step **requires explicit human confirmation**.
+5. **Activity → PR lifecycle.** `/perform-activity [true|false] | <prompt>` takes a trusted,
+   locally-typed instruction (parameters first, then a `|` separator, then the free-text prompt),
+   analyses it, confirms guardrail compliance, implements honouring every guardrail here, and
+   visually verifies any UI/gameplay change. With the **default `true`** flag it branches from
+   `origin/main`, commits + opens a structured PR (title = a Conventional-Commit subject), waits
+   for the `preview` check, then — **after you confirm** — squash-merges to `main`. With **`false`**
+   it works in the current tree and stops without committing (for review). **No GitHub issue or
+   comment is ever read or written** (beyond the optional PR it authors) — there are no issue
+   labels and nothing for `/release` to reconcile. The harness blocks an agent from self-merging
+   its own PR, so the merge step **requires explicit human confirmation**.
 
 6. **`/release`** runs the quality gates (dispatch `security.yml` against `main`; run the Unity
    tests locally), computes the SemVer bump, promotes `## [Unreleased]`, bumps `bundleVersion`,

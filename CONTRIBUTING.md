@@ -63,9 +63,9 @@ A few things to keep in mind when you extend beyond the two default targets:
 - Match the style, naming, and comment density of the surrounding code. Keep it small and
   readable; this is a tiny codebase on purpose.
 - Keep [`README.md`](README.md), [`CLAUDE.md`](CLAUDE.md), **and the
-  [`.claude/skills/`](.claude/skills/) workflow skills** (`/release`, `/work-issue`,
-  `/list-issues`) up to date with any change that affects them — the skills are documentation
-  of the actual process, so a process change that leaves them stale is an incomplete change.
+  [`.claude/skills/`](.claude/skills/) workflow skills** (`/release`, `/perform-activity`) up to
+  date with any change that affects them — the skills are documentation of the actual process, so
+  a process change that leaves them stale is an incomplete change.
 
 ## Submitting changes
 
@@ -123,10 +123,12 @@ release time**, not per-PR — the only PR-time check is the `changelog-preview`
   `main` stays one parseable Conventional Commit per PR.
 - A **release** is a GitHub Release with two attached build ZIPs — the **Windows** standalone and
   the **WebGL** build — produced locally from the Unity Editor (there is no Unity build in CI).
-- The maintainer drives issues/branches/releases with three Claude Code skills:
-  **`/work-issue <n>`** (branch → implement → PR → confirm-merge), **`/list-issues`** (backlog
-  overview), and **`/release`** (gates → version bump → build both targets → GitHub Release). See
-  [`CLAUDE.md`](CLAUDE.md) → *Commits, changelog & release*.
+- The maintainer drives work/branches/releases with two Claude Code skills:
+  **`/perform-activity [true|false] | <prompt>`** (do a piece of work from a trusted, locally-typed
+  prompt → optionally branch → implement → PR → confirm-merge) and **`/release`** (gates → version
+  bump → build both targets → GitHub Release). The agent reads **no** GitHub issue or comment text
+  — a deliberate prompt-injection safeguard — so human-filed issues are triaged by a person, not
+  auto-ingested by the agent. See [`CLAUDE.md`](CLAUDE.md) → *Commits, changelog & release*.
 
 ### Keeping the tooling current
 

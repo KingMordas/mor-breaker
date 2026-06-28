@@ -95,13 +95,12 @@ ehthumbs.db
 
 # Claude Code local settings & generated skill docs (machine-specific or
 # regenerable) are NOT committed — but the hand-written, shared custom skills ARE.
-# Pattern: ignore everything in .claude/, then re-include only the three custom
-# skill folders (release / work-issue / list-issues). Git can't re-include a path
-# whose parent dir is ignored, so each level is un-ignored before the next is
-# re-ignored. The ~75 auto-generated MCP skill docs stay ignored.
+# Pattern: ignore everything in .claude/, then re-include only the custom skill
+# folders (release / perform-activity). Git can't re-include a path whose parent
+# dir is ignored, so each level is un-ignored before the next is re-ignored. The
+# ~75 auto-generated MCP skill docs stay ignored.
 .claude/*
 !.claude/skills/
 .claude/skills/*
 !.claude/skills/release/
-!.claude/skills/work-issue/
-!.claude/skills/list-issues/
+!.claude/skills/perform-activity/

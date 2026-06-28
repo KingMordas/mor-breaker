@@ -82,8 +82,8 @@ listed in [`.gitignore`](.gitignore)). Unity regenerates them locally:
 > dependency** on the MCP tooling — a clean clone plays and builds without it.
 
 - **`.claude/`** — local Claude Code settings and the ~75 auto-generated MCP skill docs are
-  **not** committed. The exception is the three hand-written shared skills
-  (`release`, `work-issue`, `list-issues`), which **are** committed (the
+  **not** committed. The exception is the two hand-written shared skills
+  (`release`, `perform-activity`), which **are** committed (the
   [`.gitignore`](.gitignore) re-includes exactly those folders).
 
 ### Controls
@@ -185,8 +185,10 @@ Continuous integration is deliberately minimal (this is a free-tier public repo)
   Unity tests run as the quality gate; then the version is bumped, both targets are built locally
   from the Editor, and the GitHub Release is published with the two ZIPs.
 
-Maintainer tooling lives in three Claude Code skills — `/work-issue`, `/list-issues`, `/release`
-— documented in [`CLAUDE.md`](CLAUDE.md). Commit/PR conventions are in
+Maintainer tooling lives in two Claude Code skills — `/perform-activity` (do a piece of work,
+optionally branch → PR → confirm-merge) and `/release` — documented in [`CLAUDE.md`](CLAUDE.md).
+The agent is driven by trusted, locally-typed prompts and reads **no** GitHub issue or comment
+text (a deliberate prompt-injection safeguard on a public repo). Commit/PR conventions are in
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Forking this project
@@ -199,7 +201,7 @@ to publish under your own name, the only things you'd typically change are **ide
 | --- | --- | --- |
 | Company / app id | [`ProjectSettings/ProjectSettings.asset`](ProjectSettings/ProjectSettings.asset) — `companyName`, `applicationIdentifier` (`com.mordware.morbreaker`) | A reverse-DNS bundle id you control. Change to your own (e.g. `com.yourname.morbreaker`). Safe to leave as-is for a private build, but use your own before publishing a store/app build. |
 | Copyright holder | [`LICENSE`](LICENSE) | MIT requires the original copyright line to be **kept**; add your own line for substantial changes rather than replacing it. |
-| Repo references | [`README.md`](README.md), [`CLAUDE.md`](CLAUDE.md), `.claude/skills/*` | Point the maintainer tooling (`/release`, `/work-issue`, `/list-issues`) and links at *your* GitHub repo. |
+| Repo references | [`README.md`](README.md), [`CLAUDE.md`](CLAUDE.md), `.claude/skills/*` | Point the maintainer tooling (`/release`, `/perform-activity`) and links at *your* GitHub repo. |
 
 The WebGL build is plain static files (it uses Unity's default template and only the browser's
 `localStorage`), so you host it on **any** web page — your own site, GitHub Pages, itch.io, etc.
