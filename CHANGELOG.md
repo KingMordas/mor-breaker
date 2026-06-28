@@ -14,6 +14,14 @@ release*). Entries are **not** reconstructed from commit messages at release tim
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [1.2.0] - 2026-06-28
+
+### Added
+
 - A tappable **HIGH SCORES** button in the bottom-left corner on touch devices (such as the
   WebGL build played on a phone), so you can open the top-10 panel without a keyboard.
 
@@ -23,8 +31,6 @@ release*). Entries are **not** reconstructed from commit messages at release tim
   is now `Q` (was `F12`).
 - On touch devices the bottom-left key hints are hidden (they need a keyboard); the new
   HIGH SCORES button takes their place.
-
-### Fixed
 
 ## [1.1.0] - 2026-06-28
 
