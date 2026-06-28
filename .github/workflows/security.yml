@@ -1,7 +1,7 @@
 name: Security scans
 
 # Runs four security scanners ON DEMAND (workflow_dispatch only) and, on failure,
-# opens/updates one richly-detailed BUG issue assigned to KingMordas for a later fix.
+# opens/updates one richly-detailed BUG issue assigned to the repo owner for a later fix.
 #
 # This workflow does NOT run per-PR: to conserve Actions minutes on a free-tier public
 # repo the security gate runs at RELEASE time. The `/release` skill is the single quality
@@ -185,6 +185,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TITLE: ${{ steps.report.outputs.issue_title }}
+          OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
           gh label create bug --description "Something isn't working" --color d73a4a 2>/dev/null || true
@@ -198,7 +199,7 @@ jobs:
             echo "Updated existing issue #$EXISTING."
           else
             gh issue create --title "$TITLE" --body-file security-issue.md \
-              --label bug --assignee KingMordas
+              --label bug --assignee "$OWNER"
             echo "Opened a new issue."
           fi
 

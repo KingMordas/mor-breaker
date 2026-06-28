@@ -167,7 +167,7 @@ purely as a convenience for development.
 
 ## Releases & CI
 
-A **release** is a [GitHub Release](https://github.com/KingMordas/mor-breaker/releases) carrying
+A **release** is a [GitHub Release](../../releases) carrying
 two build artifacts — the **Windows** standalone ZIP and the **WebGL** ZIP (the latter is what
 you drop onto a web page to host the in-browser version). There is no server deploy.
 

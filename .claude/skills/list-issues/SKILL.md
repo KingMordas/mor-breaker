@@ -5,9 +5,17 @@ description: List all open GitHub issues of morBreaker in a readable overview ta
 
 # List issues
 
-Produce a single, readable overview table of **all open** GitHub issues in `KingMordas/mor-breaker`, so the user can see the whole backlog at a glance.
+Produce a single, readable overview table of **all open** GitHub issues in the current repository, so the user can see the whole backlog at a glance.
 
-Repo facts: remote `origin` → `https://github.com/KingMordas/mor-breaker.git`, default branch `main`, GitHub owner/handle **KingMordas** (the user). Use the `gh` CLI for all GitHub operations.
+**Repo context (resolve dynamically — never hardcode the owner/repo).** This skill operates on **the GitHub repository this working tree's `origin` remote points to**, so a fork needs no edits. Resolve it once with the `gh` CLI and reuse it; pass `--repo "$REPO"` to **every** `gh` call so operations can only ever touch this repo (never a fork's `upstream`/parent or any other repo on the account):
+
+```powershell
+$originUrl = git remote get-url origin
+$REPO = gh repo view $originUrl --json nameWithOwner --jq .nameWithOwner   # e.g. "owner/name"
+$REPO_URL = gh repo view $originUrl --json url --jq .url                   # e.g. "https://github.com/owner/name"
+```
+
+Use the `gh` CLI for all GitHub operations. If `gh` is not authenticated (or `origin` is missing), report that and stop.
 
 ## Steps
 
@@ -16,11 +24,11 @@ Repo facts: remote `origin` → `https://github.com/KingMordas/mor-breaker.git`,
 Run:
 
 ```powershell
-gh issue list --state open --limit 1000 --json number,title,labels,assignees,createdAt,url
+gh issue list --repo "$REPO" --state open --limit 1000 --json number,title,labels,assignees,createdAt,url
 ```
 
 - If `gh` is not authenticated, report that and stop rather than failing mid-way.
-- If there are **no open issues**, tell the user plainly ("No open issues in `KingMordas/mor-breaker`.") and stop — do not render an empty table.
+- If there are **no open issues**, tell the user plainly ("No open issues in `$REPO`.") and stop — do not render an empty table.
 
 ### 2. Order the issues
 
@@ -37,7 +45,7 @@ Output a GitHub-flavored markdown table with these columns, in order:
 
 | Column | Content |
 | --- | --- |
-| **#** | The issue number as a clickable markdown link to its `url` (e.g. `[#12](https://github.com/KingMordas/mor-breaker/issues/12)`). |
+| **#** | The issue number as a clickable markdown link to its `url` (the `url` field returned by `gh`, e.g. `[#12]($REPO_URL/issues/12)`). |
 | **Priority** | `🐛 Bug` for bug-labelled issues, otherwise `—`. |
 | **Title** | The issue title. |
 | **Labels** | All labels, comma-separated (or `—` if none). |
