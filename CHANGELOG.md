@@ -14,6 +14,14 @@ release*). Entries are **not** reconstructed from commit messages at release tim
 
 ### Added
 
+- Initial public release of **morBreaker**, a 2D brick-breaker game.
+- Bouncing ball with paddle "english" (where you hit steers the bounce) that speeds up on every wall bounce and every non-breaking brick hit, with the ramp steepening each level (capped, and reset when you lose a ball).
+- 10 hand-tuned levels of rising difficulty, with a runtime-generated, colour-coded brick grid.
+- Score, lives, level progression, and a win bonus for clearing the final level.
+- Optional local high-score list (name + score + level + date + a "beat-the-game" flag) with an in-game top-10 panel (`F1`), stored only on your own device (browser `localStorage` on WebGL) and never transmitted.
+- Keyboard and pointer/touch controls (Unity Input System) and a HUD that scales to any screen size.
+- Builds for Windows (Standalone, x86_64) and WebGL.
+
 ### Changed
 
 ### Fixed
