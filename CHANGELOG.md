@@ -14,6 +14,9 @@ release*). Entries are **not** reconstructed from commit messages at release tim
 
 ### Added
 
+- Press `F12` to quit the game (Windows build), so you no longer need `Alt+F4`.
+- An on-screen key guide in the bottom-left corner listing the available shortcuts (`F1` high scores, `F12` quit).
+
 ### Changed
 
 ### Fixed
