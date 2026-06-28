@@ -94,7 +94,12 @@ listed in [`.gitignore`](.gitignore)). Unity regenerates them locally:
 | Launch ball | `Space` / `↑` | Tap / click |
 | Enter name (if leaderboard enabled) | Type, then `Enter` | Type, then **Submit** |
 | Show / hide top-10 scores | `F1` | — |
+| Quit the game (Windows build) | `F12` | — |
 | Restart (after results) | `Space` / `Enter` | Tap / click |
+
+The available shortcuts are also listed on-screen in the bottom-left corner. `F12` quits the
+standalone (Windows) build; it has no effect in the browser (WebGL), where the tab is closed
+the usual way, so the hint is hidden there.
 
 ## How it works
 

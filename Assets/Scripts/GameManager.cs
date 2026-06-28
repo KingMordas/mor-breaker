@@ -29,6 +29,8 @@ namespace MorBreaker
         [SerializeField] private Text livesText;
         [SerializeField] private Text messageText;
         [SerializeField] private Text versionText;
+        [Tooltip("Bottom-left key hints (F1 high scores, F12 quit on standalone).")]
+        [SerializeField] private Text hintsText;
 
         [Header("Leaderboard (optional)")]
         [Tooltip("Score client. If unassigned or disabled, the name prompt and F1 panel are skipped.")]
@@ -84,6 +86,7 @@ namespace MorBreaker
             if (nameSubmitButton != null) nameSubmitButton.onClick.AddListener(OnNameSubmitted);
             if (nameInput != null) nameInput.onSubmit.AddListener(_ => OnNameSubmitted());
             if (versionText != null) versionText.text = "v" + Application.version;
+            UpdateHintsHud();
             NewGame();
         }
 
@@ -91,6 +94,11 @@ namespace MorBreaker
         {
             // F1 toggles the top-scores panel at any time (except mid name-entry).
             if (TogglePressed()) ToggleLeaderboard();
+
+            // F12 quits the standalone build (browsers reserve F12 for dev tools).
+#if !UNITY_WEBGL || UNITY_EDITOR
+            if (QuitPressed()) QuitGame();
+#endif
 
             // After the results are shown, a tap / click / space starts a fresh game.
             if (_state == State.Ended && _endPhase == EndPhase.Results && RestartPressed())
@@ -271,10 +279,40 @@ namespace MorBreaker
             if (leaderboardPanel != null) leaderboardPanel.SetActive(false);
         }
 
+        /// <summary>Fill the bottom-left key hints: F1 (when scores are on) and F12 (standalone only).</summary>
+        private void UpdateHintsHud()
+        {
+            if (hintsText == null) return;
+
+            var sb = new StringBuilder();
+            if (leaderboard != null && leaderboard.IsActive)
+                sb.AppendLine("F1 High Scores");
+#if !UNITY_WEBGL || UNITY_EDITOR
+            sb.Append("F12 Quit");
+#endif
+            hintsText.text = sb.ToString().TrimEnd();
+        }
+
         private static bool TogglePressed()
         {
             var k = Keyboard.current;
             return k != null && k.f1Key.wasPressedThisFrame;
+        }
+
+        private static bool QuitPressed()
+        {
+            var k = Keyboard.current;
+            return k != null && k.f12Key.wasPressedThisFrame;
+        }
+
+        /// <summary>Quit the standalone build (stop play mode in the Editor); no-op on WebGL.</summary>
+        private static void QuitGame()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
         }
 
         private static bool RestartPressed()
