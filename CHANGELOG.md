@@ -16,4 +16,6 @@ release*). Entries are **not** reconstructed from commit messages at release tim
 
 ### Changed
 
+- _CI smoke test — verifying the changelog-preview workflow. This entry is intentionally throwaway and will not be merged._
+
 ### Fixed
