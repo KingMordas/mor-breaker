@@ -5,7 +5,7 @@ description: Cut a new SemVer release of morBreaker — first run the security +
 
 # Release
 
-Cut a release of `KingMordas/mor-breaker`: **run the quality gates** (security scans in CI + the
+Cut a release of the current repository: **run the quality gates** (security scans in CI + the
 Unity tests locally), turn the accumulated `## [Unreleased]` work into a stamped `CHANGELOG.md`
 entry, bump the app version, **build the Windows and WebGL players locally** through the Unity MCP
 bridge, push a `v<X.Y.Z>` tag, and publish a **GitHub Release carrying both build ZIPs**.
@@ -29,9 +29,16 @@ Invocation: `/release` or `/release <level>` where `<level>` ∈ `major` / `mino
 - **No argument** — compute the bump automatically from the Conventional Commits since the last tag.
 - **`<level>`** — force that bump level, overriding the computed one.
 
-Repo facts: remote `origin` → `https://github.com/KingMordas/mor-breaker.git`, default branch `main`,
-tag prefix `v`. The version lives in `ProjectSettings/ProjectSettings.asset` (`bundleVersion`),
-surfaced in-game by `GameManager` via `Application.version`. Use `git` / `gh` and the Unity MCP skills.
+**Repo context (resolve dynamically — never hardcode the owner/repo).** This skill operates on **the GitHub repository this working tree's `origin` remote points to**, so a fork needs no edits. Resolve it once with the `gh` CLI and reuse it; pass `--repo "$REPO"` to **every** `gh` call so operations can only ever touch this repo (never a fork's `upstream`/parent or any other repo on the account). The default branch is `main` and the tag prefix is `v`. Use `@me` wherever the current GitHub user is needed — do not hardcode a handle:
+
+```powershell
+$originUrl = git remote get-url origin
+$REPO = gh repo view $originUrl --json nameWithOwner --jq .nameWithOwner   # e.g. "owner/name"
+$REPO_URL = gh repo view $originUrl --json url --jq .url                   # e.g. "https://github.com/owner/name"
+```
+
+The version lives in `ProjectSettings/ProjectSettings.asset` (`bundleVersion`),
+surfaced in-game by `GameManager` via `Application.version`. Use `git` / `gh` and the Unity MCP skills. If `gh` is not authenticated (or `origin` is missing), report that and stop.
 
 ## Preconditions (stop and ask if any fails)
 
@@ -48,15 +55,15 @@ Do not touch any files until **both** gates are green.
 
 1. **Dispatch the security scan against `main`** and read back the run id:
    ```powershell
-   gh workflow run security.yml --ref main
+   gh workflow run security.yml --repo "$REPO" --ref main
    Start-Sleep -Seconds 5   # let the run register before reading it back
-   $secRun = gh run list --workflow security.yml --branch main --limit 1 --json databaseId,url | ConvertFrom-Json
-   gh run watch $secRun.databaseId --exit-status
+   $secRun = gh run list --repo "$REPO" --workflow security.yml --branch main --limit 1 --json databaseId,url | ConvertFrom-Json
+   gh run watch $secRun.databaseId --repo "$REPO" --exit-status
    ```
 2. **Run the Unity tests locally** via the `tests-run` MCP skill (EditMode, then PlayMode). **Precondition: all open scenes are saved** (dirty scenes abort the run). If the project has **no tests yet**, that is a **pass**, not an error — note it and continue.
 3. **If both succeed** — continue to step 2.
 4. **If either fails** — drive it to green on `main`, then re-run *that* gate, repeating until both pass:
-   - The **security** workflow opens/updates one `bug` issue (titled `Security scan failures — main @ <sha>`) assigned to KingMordas. **Work it like a release-time fix**: stamp `in-progress`, analyse, implement the fix honouring every `CLAUDE.md` guardrail (via the Unity MCP skills), `git commit` (Conventional Commits, body, `Closes #<issue>`) and `git push origin main`, post a resolution comment, then flip the issue `+awaiting-release` / `-in-progress` so step 7 reconciles it. Re-dispatch `security.yml` and re-watch.
+   - The **security** workflow opens/updates one `bug` issue (titled `Security scan failures — main @ <sha>`) assigned to the repo owner. **Work it like a release-time fix**: stamp `in-progress`, analyse, implement the fix honouring every `CLAUDE.md` guardrail (via the Unity MCP skills), `git commit` (Conventional Commits, body, `Closes #<issue>`) and `git push origin main`, post a resolution comment, then flip the issue `+awaiting-release` / `-in-progress` so step 7 reconciles it. Re-dispatch `security.yml` and re-watch.
    - **Test failures** surface in the `tests-run` results (no auto-issue) — diagnose from the failing tests + `console-get-logs`, fix on `main`, commit + push, re-run the tests.
    - **Bound the loop:** after ~3 genuine fix attempts on the same failure (or a failure the skill can't fix — flaky infra, a missing build module), **stop and ask the user**.
 
@@ -153,13 +160,13 @@ Every issue worked through **`work-issue`** is stamped **`awaiting-release`** (b
 
 1. **Collect the set:**
    ```powershell
-   gh issue list --label awaiting-release --state all --json number,title,state,url
+   gh issue list --repo "$REPO" --label awaiting-release --state all --json number,title,state,url
    ```
    If empty, note "no issues to reconcile" and continue.
 2. **For each issue:** if still `OPEN`, close it with a comment referencing this release; then remove the marker label:
    ```powershell
-   gh issue close <n> --comment "Released in v<X.Y.Z>."
-   gh issue edit  <n> --remove-label awaiting-release
+   gh issue close <n> --repo "$REPO" --comment "Released in v<X.Y.Z>."
+   gh issue edit  <n> --repo "$REPO" --remove-label awaiting-release
    ```
    (Already-`CLOSED` issues — those auto-closed by their own squash-merge — get only the label removal.)
 3. **Print a summary table** in the release report: each issue → was it open? → action taken. Surface any `gh` failures rather than swallowing them.
@@ -192,7 +199,7 @@ foreach ($line in Get-Content CHANGELOG.md) {
 }
 ($notes -join "`n").Trim() | Set-Content notes.md -Encoding utf8
 
-gh release create "v$v" `
+gh release create "v$v" --repo "$REPO" `
   --title "v$v" `
   --notes-file notes.md `
   "Builds/morBreaker-v$v-windows.zip" `
@@ -206,7 +213,7 @@ If `notes.md` is empty (shouldn't happen — step 4 guards an empty `## [Unrelea
 
 - Confirm the release and its two assets exist:
   ```powershell
-  gh release view "v<X.Y.Z>" --json tagName,assets --jq '{tag:.tagName, assets:[.assets[].name]}'
+  gh release view "v<X.Y.Z>" --repo "$REPO" --json tagName,assets --jq '{tag:.tagName, assets:[.assets[].name]}'
   ```
   Expect both `morBreaker-v<X.Y.Z>-windows.zip` and `morBreaker-v<X.Y.Z>-webgl.zip`.
 - **Report** the version, the tag, the release URL, the two attached assets, and the issue-reconciliation summary from step 7. Remind the user that embedding the WebGL build on a web page is a separate manual step (download the WebGL ZIP from the release).

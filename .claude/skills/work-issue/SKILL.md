@@ -5,7 +5,7 @@ description: Fetch a GitHub issue by number and work it end-to-end on morBreaker
 
 # Work issue
 
-Drive a single GitHub issue from `KingMordas/mor-breaker` through to either a working-tree implementation (no branch) or a pushed branch + PR that — **once the user confirms the merge** — is **squash-merged to `main`** (new branch). Ask the user whenever there is genuine doubt, and keep the issue updated as the activity progresses.
+Drive a single GitHub issue from the current repository through to either a working-tree implementation (no branch) or a pushed branch + PR that — **once the user confirms the merge** — is **squash-merged to `main`** (new branch). Ask the user whenever there is genuine doubt, and keep the issue updated as the activity progresses.
 
 > **CI model (read this).** To conserve Actions minutes, the **security** (`security.yml`) workflow and the **Unity tests** run **at `/release` time**, not on PRs. The **only** workflow that runs on a PR to `main` is **`changelog-preview.yml`** (Conventional-Commit lint + CHANGELOG-update gate — the `preview` check). So this skill waits for that single check, then **asks the user to confirm** and **squash-merges** the PR (delete branch). `main` is configured **squash-only** and **branch-protected** to require the `preview` check.
 >
@@ -20,14 +20,22 @@ Invocation: `/work-issue <issue#> [true|false]` — e.g. `/work-issue #1` (branc
 
 Throughout, call this `ISSUE` and `NEW_BRANCH`.
 
-Repo facts: remote `origin` → `https://github.com/KingMordas/mor-breaker.git`, default branch `main`, GitHub owner/handle **KingMordas** (the user). Use the `gh` CLI for all GitHub operations.
+**Repo context (resolve dynamically — never hardcode the owner/repo).** This skill operates on **the GitHub repository this working tree's `origin` remote points to**, so a fork needs no edits. Resolve it once with the `gh` CLI and reuse it; pass `--repo "$REPO"` to **every** `gh` call so operations can only ever touch this repo (never a fork's `upstream`/parent or any other repo on the account). The default branch is `main`. Use `@me` wherever the current GitHub user is needed (e.g. PR assignee) — do not hardcode a handle:
+
+```powershell
+$originUrl = git remote get-url origin
+$REPO = gh repo view $originUrl --json nameWithOwner --jq .nameWithOwner   # e.g. "owner/name"
+$REPO_URL = gh repo view $originUrl --json url --jq .url                   # e.g. "https://github.com/owner/name"
+```
+
+Use the `gh` CLI for all GitHub operations. If `gh` is not authenticated (or `origin` is missing), report that and stop.
 
 ## Steps
 
 ### 1. Fetch the issue
 
 ```powershell
-gh issue view <ISSUE> --json number,title,state,body,labels,assignees,comments,url
+gh issue view <ISSUE> --repo "$REPO" --json number,title,state,body,labels,assignees,comments,url
 ```
 
 - If the issue does not exist, **inform the user that issue #<ISSUE> was not found and stop** — take no further action (no branch, no comment, nothing).
@@ -55,9 +63,9 @@ gh issue view <ISSUE> --json number,title,state,body,labels,assignees,comments,u
 2. **Stamp the `in-progress` label** (both flows). `awaiting-release` is **not** set here — only at the very end (step 7).
 
 ```powershell
-gh issue comment <ISSUE> --body "<branch info>"
-gh label create in-progress --description "Actively being worked via /work-issue; cleared when queued for release" --color 0E8A16 2>$null
-gh issue edit <ISSUE> --add-label in-progress
+gh issue comment <ISSUE> --repo "$REPO" --body "<branch info>"
+gh label create in-progress --repo "$REPO" --description "Actively being worked via /work-issue; cleared when queued for release" --color 0E8A16 2>$null
+gh issue edit <ISSUE> --repo "$REPO" --add-label in-progress
 ```
 
 ### 4. Analyse & clarify
@@ -97,8 +105,8 @@ If the change touches logic covered by tests, run the **relevant** tests via `te
 **Mark it for release (both flows, only now).** The work is complete and verified, so flip the labels: **add `awaiting-release`** (the machine-readable marker `/release` uses to reconcile + close issues) and **remove `in-progress`**. Apply this **at the very end** — for the `true` flow, **only after the PR has been merged to `main`** (the user confirmed and the squash-merge succeeded); for the `false` flow, after posting the final comment:
 
 ```powershell
-gh label create awaiting-release --description "Worked and queued for the next release; reconciled+closed by /release" --color FBCA04 2>$null
-gh issue edit <ISSUE> --add-label awaiting-release --remove-label in-progress
+gh label create awaiting-release --repo "$REPO" --description "Worked and queued for the next release; reconciled+closed by /release" --color FBCA04 2>$null
+gh issue edit <ISSUE> --repo "$REPO" --add-label awaiting-release --remove-label in-progress
 ```
 
 **If `NEW_BRANCH` is false** — **do NOT commit, push, or open a PR.** Leave the changes in the working tree. Then:
@@ -124,24 +132,24 @@ gh issue edit <ISSUE> --add-label awaiting-release --remove-label in-progress
    ```
    Note: a Unity change may touch generated `.meta` files and `ProjectSettings` — stage the genuinely-relevant files; don't sweep in `Library/`/`Temp/` churn (the `.gitignore` already excludes them).
 2. **Push**: `git push -u origin <branch-name>`.
-3. **Open a PR to `main`**, assigning KingMordas and linking the issue so merging auto-closes it. **The PR title must itself be a Conventional Commit subject** (the *same* subject as the commit in 7.1) — the squash-merge in 7.5 uses it as the commit landed on `main`, and **`/release` parses those `main` subjects to compute the SemVer bump**, so a non-conventional title would silently break the bump. **If you decided the change is changelog-exempt, create the PR *with* the `skip-changelog` label** (`--label skip-changelog`); never add it afterwards (timing trap). Omit `--label` when the change is user-visible (you added a CHANGELOG entry instead):
+3. **Open a PR to `main`**, assigning the current user (`@me`) and linking the issue so merging auto-closes it. **The PR title must itself be a Conventional Commit subject** (the *same* subject as the commit in 7.1) — the squash-merge in 7.5 uses it as the commit landed on `main`, and **`/release` parses those `main` subjects to compute the SemVer bump**, so a non-conventional title would silently break the bump. **If you decided the change is changelog-exempt, create the PR *with* the `skip-changelog` label** (`--label skip-changelog`); never add it afterwards (timing trap). Omit `--label` when the change is user-visible (you added a CHANGELOG entry instead):
    ```powershell
-   gh label create skip-changelog --description "Change has no player-facing effect; exempt from the CHANGELOG gate" --color ededed 2>$null  # only when exempt
-   gh pr create --base main --head <branch-name> `
+   gh label create skip-changelog --repo "$REPO" --description "Change has no player-facing effect; exempt from the CHANGELOG gate" --color ededed 2>$null  # only when exempt
+   gh pr create --repo "$REPO" --base main --head <branch-name> `
      --title "<type(scope): imperative description — SAME subject as the commit>" `
      --body "$body" `
-     --assignee KingMordas `
+     --assignee @me `
      --label skip-changelog   # ← include ONLY for a changelog-exempt change; omit otherwise
    ```
    Compose `$body` (here-string) with: **`## Summary`** (what & why), **`## Changes`** (bullets of changed scripts/scene/assets + decisions, mirroring guardrail touches), **`## Testing`** (what was verified — compile clean, play-mode screenshot/flow, any tests run, or an explicit note it wasn't runtime-verified and why), then a final **`Closes #<ISSUE>`**.
 4. Post a comment on the issue with the PR link and a summary.
 5. **Wait for the changelog-preview check, then confirm + merge.** The **only** check on this PR is **`changelog-preview`** (the `preview` check). Watch it:
    ```powershell
-   gh pr checks <PR#> --watch --interval 20
+   gh pr checks <PR#> --repo "$REPO" --watch --interval 20
    ```
    - **If it passes** — **ask the user to confirm the merge** (AskUserQuestion: "Merge PR #<PR#> to `main`?"). This is the deliberate human gate; the harness blocks self-merge without approval. **Do not run `gh pr merge` before the user confirms.** Once approved, squash-merge, delete the branch, with an explicit Conventional-Commit subject:
      ```powershell
-     gh pr merge <PR#> --squash --delete-branch --subject "<type(scope): description — same subject as the commit/PR title>"
+     gh pr merge <PR#> --repo "$REPO" --squash --delete-branch --subject "<type(scope): description — same subject as the commit/PR title>"
      ```
      If the user **declines**, stop and leave the PR open (do **not** flip labels — the work isn't on `main` yet); report that it awaits their merge.
    - **If it fails** — `changelog-preview` opens **no** bug issue; it fails only on a **non-conventional commit** or a **missing `## [Unreleased]` CHANGELOG entry** (or a mis-set `skip-changelog` label). Fix the cause on **this same branch**, `git push --force-with-lease` if you amended, and **re-watch**. **Bound to ~3 attempts**; if it still fails, **stop and ask the user** rather than looping or merging red.
