@@ -25,7 +25,8 @@ a **WebGL** build you can embed as a free page on any website.
 - Runtime-generated brick grid with per-row durability and colour-coded hit points
 - Score, lives, level progression, and a **win bonus** for clearing the final level
 - **Local high-score list** (name + score + level + date + a "beat-the-game" flag) with an
-  in-game top-10 panel (`F1`), saved in the browser's `localStorage` — never sent anywhere
+  in-game top-10 panel (`H`, or a tap on the on-screen button), saved in the browser's
+  `localStorage` — never sent anywhere
 - Keyboard **and** pointer/touch controls (built on the Unity Input System)
 - Lightweight HUD that scales to any screen size
 
@@ -93,13 +94,16 @@ listed in [`.gitignore`](.gitignore)). Unity regenerates them locally:
 | Move paddle | `A` / `D` or `←` / `→` | Hold and drag horizontally |
 | Launch ball | `Space` / `↑` | Tap / click |
 | Enter name (if leaderboard enabled) | Type, then `Enter` | Type, then **Submit** |
-| Show / hide top-10 scores | `F1` | — |
-| Quit the game (Windows build) | `F12` | — |
+| Show / hide top-10 scores | `H` | Tap the **HIGH SCORES** button |
+| Quit the game (Windows build) | `Q` | — |
 | Restart (after results) | `Space` / `Enter` | Tap / click |
 
-The available shortcuts are also listed on-screen in the bottom-left corner. `F12` quits the
-standalone (Windows) build; it has no effect in the browser (WebGL), where the tab is closed
-the usual way, so the hint is hidden there.
+On a device with a keyboard the available shortcuts are listed on-screen in the bottom-left
+corner (`H High Scores`, plus `Q Quit` on the Windows build). `Q` quits the standalone (Windows)
+build; it has no effect in the browser (WebGL), where the tab is closed the usual way, so that
+hint is hidden there. On a **touch device** (e.g. the WebGL build on a phone) there is no
+keyboard, so the key hints are hidden and a tappable **HIGH SCORES** button is shown in the
+bottom-left instead — tap it to open or close the top-10 panel.
 
 ## How it works
 
@@ -127,7 +131,8 @@ own machine.
 
 When a game ends (win or lose) the player *may voluntarily* type a short nickname (max 10
 characters); that nickname plus the run's score, level, date (no time), and a "beat-the-game"
-flag are saved to a **local high-score list**. Press **`F1`** any time to see the top 10.
+flag are saved to a **local high-score list**. Press **`H`** (or tap the on-screen **HIGH
+SCORES** button on a touch device) any time to see the top 10.
 
 - **WebGL builds** store the list in the browser's
   [`localStorage`](Assets/Plugins/WebGL/MorBreakerLocalStore.jslib) under the key
