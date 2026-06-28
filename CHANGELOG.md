@@ -14,7 +14,15 @@ release*). Entries are **not** reconstructed from commit messages at release tim
 
 ### Added
 
+- A tappable **HIGH SCORES** button in the bottom-left corner on touch devices (such as the
+  WebGL build played on a phone), so you can open the top-10 panel without a keyboard.
+
 ### Changed
+
+- The high-scores shortcut is now `H` (was `F1`), and the quit shortcut on the Windows build
+  is now `Q` (was `F12`).
+- On touch devices the bottom-left key hints are hidden (they need a keyboard); the new
+  HIGH SCORES button takes their place.
 
 ### Fixed
 

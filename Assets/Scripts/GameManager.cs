@@ -29,11 +29,13 @@ namespace MorBreaker
         [SerializeField] private Text livesText;
         [SerializeField] private Text messageText;
         [SerializeField] private Text versionText;
-        [Tooltip("Bottom-left key hints (F1 high scores, F12 quit on standalone).")]
+        [Tooltip("Bottom-left key hints (H high scores, Q quit on standalone). Hidden on touch devices.")]
         [SerializeField] private Text hintsText;
+        [Tooltip("Bottom-left tappable 'High Scores' button, shown only on touch devices (no keyboard).")]
+        [SerializeField] private Button highScoresButton;
 
         [Header("Leaderboard (optional)")]
-        [Tooltip("Score client. If unassigned or disabled, the name prompt and F1 panel are skipped.")]
+        [Tooltip("Score client. If unassigned or disabled, the name prompt and high-scores panel are skipped.")]
         [SerializeField] private Leaderboard leaderboard;
         [Tooltip("Root panel holding the nickname input + submit button.")]
         [SerializeField] private GameObject nameEntryPanel;
@@ -62,6 +64,7 @@ namespace MorBreaker
         private State _state;
         private EndPhase _endPhase;
         private bool _won;
+        private bool _touchControls;
 
         private void OnEnable()
         {
@@ -85,17 +88,22 @@ namespace MorBreaker
             if (nameInput != null) nameInput.characterLimit = Leaderboard.MaxNameLength;
             if (nameSubmitButton != null) nameSubmitButton.onClick.AddListener(OnNameSubmitted);
             if (nameInput != null) nameInput.onSubmit.AddListener(_ => OnNameSubmitted());
+            if (highScoresButton != null) highScoresButton.onClick.AddListener(ToggleLeaderboard);
             if (versionText != null) versionText.text = "v" + Application.version;
-            UpdateHintsHud();
+            RefreshControlsUi();
             NewGame();
         }
 
         private void Update()
         {
-            // F1 toggles the top-scores panel at any time (except mid name-entry).
+            // Touch devices (e.g. mobile-web) may register their touchscreen late;
+            // keep the key-hints / tappable-button affordance in sync when it appears.
+            if (UsesTouchControls() != _touchControls) RefreshControlsUi();
+
+            // H toggles the top-scores panel at any time (except mid name-entry).
             if (TogglePressed()) ToggleLeaderboard();
 
-            // F12 quits the standalone build (browsers reserve F12 for dev tools).
+            // Q quits the standalone build; WebGL closes via the browser tab instead.
 #if !UNITY_WEBGL || UNITY_EDITOR
             if (QuitPressed()) QuitGame();
 #endif
@@ -222,7 +230,7 @@ namespace MorBreaker
                     }));
         }
 
-        /// <summary>F1: open the panel (fetching fresh scores) or close it.</summary>
+        /// <summary>H key / tappable button: open the panel (fetching fresh scores) or close it.</summary>
         private void ToggleLeaderboard()
         {
             if (leaderboard == null || !leaderboard.IsActive || leaderboardPanel == null) return;
@@ -255,7 +263,7 @@ namespace MorBreaker
                     }
                 }
                 sb.AppendLine();
-                sb.AppendLine("F1 to close");
+                sb.AppendLine(_touchControls ? "Tap HIGH SCORES to close" : "H to close");
                 leaderboardText.text = sb.ToString();
             }
             if (leaderboardPanel != null) leaderboardPanel.SetActive(true);
@@ -279,30 +287,54 @@ namespace MorBreaker
             if (leaderboardPanel != null) leaderboardPanel.SetActive(false);
         }
 
-        /// <summary>Fill the bottom-left key hints: F1 (when scores are on) and F12 (standalone only).</summary>
-        private void UpdateHintsHud()
+        /// <summary>
+        /// Pick the high-scores affordance for the current input device: a tappable
+        /// bottom-left button on touch devices (which have no keyboard), or the
+        /// bottom-left key hints (H high scores, plus Q quit on standalone) otherwise.
+        /// </summary>
+        private void RefreshControlsUi()
         {
+            _touchControls = UsesTouchControls();
+            bool scoresOn = leaderboard != null && leaderboard.IsActive;
+
+            // The tappable button only makes sense on touch (and only when scores are on).
+            if (highScoresButton != null)
+                highScoresButton.gameObject.SetActive(_touchControls && scoresOn);
+
             if (hintsText == null) return;
 
+            if (_touchControls)
+            {
+                // Key hints are meaningless without a keyboard; the button replaces them.
+                hintsText.text = string.Empty;
+                return;
+            }
+
             var sb = new StringBuilder();
-            if (leaderboard != null && leaderboard.IsActive)
-                sb.AppendLine("F1 High Scores");
+            if (scoresOn)
+                sb.AppendLine("H High Scores");
 #if !UNITY_WEBGL || UNITY_EDITOR
-            sb.Append("F12 Quit");
+            sb.Append("Q Quit");
 #endif
             hintsText.text = sb.ToString().TrimEnd();
+        }
+
+        /// <summary>True when a touchscreen is the relevant input (e.g. mobile-web): no keyboard.</summary>
+        private static bool UsesTouchControls()
+        {
+            return Touchscreen.current != null;
         }
 
         private static bool TogglePressed()
         {
             var k = Keyboard.current;
-            return k != null && k.f1Key.wasPressedThisFrame;
+            return k != null && k.hKey.wasPressedThisFrame;
         }
 
         private static bool QuitPressed()
         {
             var k = Keyboard.current;
-            return k != null && k.f12Key.wasPressedThisFrame;
+            return k != null && k.qKey.wasPressedThisFrame;
         }
 
         /// <summary>Quit the standalone build (stop play mode in the Editor); no-op on WebGL.</summary>
