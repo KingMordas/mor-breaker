@@ -1,18 +1,19 @@
 #!/usr/bin/env node
 // ─────────────────────────────────────────────────────────────────────────────
-// security-report.mjs — aggregate the security scanners' reports into a sticky
-// comment and a richly-detailed BUG issue body.
+// security-report.mjs — aggregate the security scanners' reports into a short
+// summary and a richly-detailed report body.
 //
 // Reads the per-tool reports written by .github/workflows/security.yml into
 // ./security-reports/ (one JSON file per scanner + a meta.json with each tool's
 // version, the exact command run, and its exit code), normalises every finding to
 // { sev, loc, rule, msg }, and emits:
-//   • security-comment.md — a 🟢 pass / 🔴 fail summary (the workflow is
-//     dispatch-only, so this is mainly used in the run log / report step).
-//   • security-issue.md   — the issue body, built to be handed straight to Claude
+//   • security-comment.md — a 🟢 pass / 🔴 fail summary.
+//   • security-report.md  — the full report, built to be handed straight to Claude
 //     for a later fix: context block (ref/SHA/run URL, each tool's version + exact
 //     command), per-tool normalised findings, and the full raw reports inline up
-//     to GitHub's body limit, with the complete JSON also attached as an artifact.
+//     to a size limit, with the complete JSON also attached as an artifact. GitHub
+//     Issues are disabled on this repo, so the workflow surfaces this report in the
+//     run's job summary and the security-reports artifact (no issue is filed).
 //
 // Privacy: scanners are run so secret VALUES never reach here (gitleaks --redact);
 // this script only ever prints rule/severity/location/message — no data leaks.
@@ -20,14 +21,14 @@
 // Dependency-free: Node built-ins only — no npm install, no third-party action
 // (the free-resources + zero-third-party-action CI stance).
 //
-// Outputs (GitHub Actions, on $GITHUB_OUTPUT): failed=true|false, issue_title=…
-// Always exits 0 — the workflow decides when to fail the check, so the comment is
-// written and the issue is opened first.
+// Outputs (GitHub Actions, on $GITHUB_OUTPUT): failed=true|false.
+// Always exits 0 — the workflow decides when to fail the check, after the report
+// has been written to the job summary and the artifact.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from "node:fs";
 
 const DIR = "security-reports";
-const ISSUE_BODY_LIMIT = 60000; // stay safely under GitHub's 65 536-char issue body cap
+const REPORT_BODY_LIMIT = 60000; // cap the rendered report (job summary has a ~1 MiB limit; keep it lean)
 
 // ── Context from the workflow environment ────────────────────────────────────
 const serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com";
@@ -138,7 +139,7 @@ function parseCheckov() {
   return out;
 }
 
-// ── Tool registry (display order = the issue's numbered list) ─────────────────
+// ── Tool registry (display order = the report's numbered list) ────────────────
 const TOOLS = [
   { id: "semgrep", name: "Semgrep CE", category: "SAST (static analysis, incl. C#)", parse: parseSemgrep, raw: "semgrep.json" },
   { id: "trivy", name: "Trivy", category: "Dependencies + misconfig (fs)", parse: parseTrivy, raw: "trivy.json" },
@@ -207,11 +208,11 @@ function buildComment() {
     out.push(
       "## 🔴 ❌ Security scans failed",
       "",
-      `@KingMordas — findings from: **${names}**.`,
+      `Findings from: **${names}**.`,
       "",
       summaryTable(),
       "",
-      `A detailed issue has been opened/updated for later analysis. Full raw reports are attached to the run as the **\`${artifactName}\`** artifact.`,
+      `Full findings are in this run's job summary and the **\`${artifactName}\`** artifact.`,
     );
   }
   if (runUrl) out.push("", `[View workflow run ↗](${runUrl})`);
@@ -222,7 +223,7 @@ function buildComment() {
   return out.join("\n") + "\n";
 }
 
-// ── security-issue.md (rich, Claude-ready) ───────────────────────────────────
+// ── security-report.md (rich, Claude-ready) ──────────────────────────────────
 function findingsBlock(r, limit) {
   if (r.errored) {
     return [
@@ -245,12 +246,12 @@ function findingsBlock(r, limit) {
   return lines;
 }
 
-function buildIssue(perToolLimit) {
+function buildReport(perToolLimit) {
   const total = results.reduce((n, r) => n + r.count, 0);
   const out = [
     `## 🔒 Security scan findings — \`${refName}\` @ ${shortSha}`,
     "",
-    "Automated security scans failed. This issue is intended to be handed directly to Claude Code for analysis and a fix.",
+    "Automated security scans failed. This report is intended to be handed directly to Claude Code for analysis and a fix.",
     "",
     "### Context",
     "",
@@ -284,29 +285,24 @@ function buildIssue(perToolLimit) {
   return out.filter((l) => l !== "").join("\n") + "\n";
 }
 
-// Build the issue body, shrinking the per-tool finding cap until it fits the limit.
-let issueBody = "";
+// Build the report body, shrinking the per-tool finding cap until it fits the limit.
+let reportBody = "";
 for (const limit of [200, 100, 50, 25, 10]) {
-  issueBody = buildIssue(limit);
-  if (issueBody.length <= ISSUE_BODY_LIMIT) break;
+  reportBody = buildReport(limit);
+  if (reportBody.length <= REPORT_BODY_LIMIT) break;
 }
-if (issueBody.length > ISSUE_BODY_LIMIT) {
-  issueBody =
-    issueBody.slice(0, ISSUE_BODY_LIMIT - 200) +
-    `\n\n> _Report truncated to fit GitHub's issue size limit — see the \`${artifactName}\` artifact for the complete output._\n`;
+if (reportBody.length > REPORT_BODY_LIMIT) {
+  reportBody =
+    reportBody.slice(0, REPORT_BODY_LIMIT - 200) +
+    `\n\n> _Report truncated to fit the size limit — see the \`${artifactName}\` artifact for the complete output._\n`;
 }
 
 // ── Emit ─────────────────────────────────────────────────────────────────────
 writeFileSync("security-comment.md", buildComment(), "utf8");
-writeFileSync("security-issue.md", issueBody, "utf8");
-
-const issueTitle = `Security scan failures — ${refName} @ ${shortSha}`;
+writeFileSync("security-report.md", reportBody, "utf8");
 
 if (process.env.GITHUB_OUTPUT) {
-  appendFileSync(
-    process.env.GITHUB_OUTPUT,
-    `failed=${failed}\nissue_title=${issueTitle}\n`,
-  );
+  appendFileSync(process.env.GITHUB_OUTPUT, `failed=${failed}\n`);
 }
 
 console.log(

@@ -15,11 +15,13 @@ Drive a single development **activity** — described entirely by a **prompt the
 
 ## Inputs
 
-Invocation: `/perform-activity [true|false] | <prompt>` — **parameters first, then a `|` separator, then the free-text prompt last**. Examples:
+Invocation: `/perform-activity [<flag> |] <prompt>` — an **optional** parameter section, then a `|` separator, then the free-text prompt. **The `|` is only needed when you pass a parameter.** Examples:
 
-- `/perform-activity make the paddle 10% wider` — branch + PR (the default), no leading flag.
-- `/perform-activity true | add a subtle screen shake when a 3-hit brick breaks` — branch + PR, explicit.
+- `/perform-activity make the paddle 10% wider` — **the easy/default case: just type the prompt.** No `|`, no flag. Uses every default (branch + PR + confirm-merge). **This is what to use unless you specifically want a non-default flag.**
+- `/perform-activity true | add a subtle screen shake when a 3-hit brick breaks` — branch + PR, explicit `true`.
 - `/perform-activity false | tidy the brick colour ramp, leave it uncommitted for review` — work in place, no commit.
+
+> **You do not have to start with `|`.** Writing `/perform-activity <prompt>` with nothing before it is the normal, all-defaults way. A leading `| <prompt>` (empty parameter section) is *also* accepted and means the same thing, but it's unnecessary — prefer the bare prompt.
 
 **Parsing (do this exactly):**
 

@@ -1,13 +1,15 @@
 name: Security scans
 
 # Runs four security scanners ON DEMAND (workflow_dispatch only) and, on failure,
-# opens/updates one richly-detailed BUG issue assigned to the repo owner for a later fix.
+# surfaces a richly-detailed report in the run's job summary and as a downloadable
+# artifact. (GitHub Issues are disabled on this repo, so nothing is filed as an issue.)
 #
 # This workflow does NOT run per-PR: to conserve Actions minutes on a free-tier public
 # repo the security gate runs at RELEASE time. The `/release` skill is the single quality
 # gate — it dispatches this workflow against `main` (`gh workflow run security.yml --ref
-# main`), watches it to completion, and drives any failure (incl. the BUG issue opened
-# below) to green before tagging the release. See .claude/skills/release/SKILL.md.
+# main`), watches it to completion, and drives any failure (read from the job summary +
+# the `security-reports` artifact) to green before tagging the release. See
+# .claude/skills/release/SKILL.md.
 #
 # Design (adapted for a Unity/C# repo):
 #   • ONE consolidated job, not N parallel + an aggregator — the biggest CI-minutes
@@ -25,10 +27,10 @@ name: Security scans
 on:
   workflow_dispatch:
 
-# Least privilege: read code, open/update the BUG issue on failure.
+# Least privilege: read code only. No issue/PR writes — findings go to the job
+# summary and the uploaded artifact (GitHub Issues are disabled on this repo).
 permissions:
   contents: read
-  issues: write
 
 # One run per ref; drop superseded runs on rapid pushes (a direct minute saver).
 concurrency:
@@ -165,12 +167,28 @@ jobs:
           echo "Exits: semgrep=$SEMGREP_EXIT trivy=$TRIVY_EXIT gitleaks=$GITLEAKS_EXIT checkov=$CHECKOV_EXIT"
           exit 0  # the aggregation step decides pass/fail
 
-      - name: Build report (comment + issue)
+      - name: Build report
         id: report
         env:
           EVENT_NAME: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
-        run: node scripts/security-report.mjs
+        run: |
+          node scripts/security-report.mjs
+          # Keep the rendered report alongside the raw JSON so it rides along in the
+          # artifact (GitHub Issues are disabled, so this is the durable record).
+          cp -f security-report.md security-comment.md security-reports/ 2>/dev/null || true
+
+      - name: Write report to job summary
+        if: always()
+        env:
+          FAILED: ${{ steps.report.outputs.failed }}
+        run: |
+          # On failure show the full report; on a clean pass show the short green summary.
+          if [ "$FAILED" = "true" ] && [ -f security-report.md ]; then
+            cat security-report.md >> "$GITHUB_STEP_SUMMARY"
+          elif [ -f security-comment.md ]; then
+            cat security-comment.md >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload full raw reports
         if: always()
@@ -180,31 +198,8 @@ jobs:
           path: security-reports/
           retention-days: 90
 
-      - name: Open / update BUG issue (on failure)
-        if: steps.report.outputs.failed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TITLE: ${{ steps.report.outputs.issue_title }}
-          OWNER: ${{ github.repository_owner }}
-        run: |
-          set -euo pipefail
-          gh label create bug --description "Something isn't working" --color d73a4a 2>/dev/null || true
-
-          # Dedup: an open issue with the same title is updated, not duplicated.
-          EXISTING=$(gh issue list --state open --label bug --search "in:title \"$TITLE\"" \
-            --json number,title --jq ".[] | select(.title == \"$TITLE\") | .number" | head -n1)
-
-          if [ -n "$EXISTING" ]; then
-            gh issue comment "$EXISTING" --body-file security-issue.md
-            echo "Updated existing issue #$EXISTING."
-          else
-            gh issue create --title "$TITLE" --body-file security-issue.md \
-              --label bug --assignee "$OWNER"
-            echo "Opened a new issue."
-          fi
-
       - name: Fail the check if any scanner reported findings
         if: steps.report.outputs.failed == 'true'
         run: |
-          echo "::error::Security scans reported findings — see the auto-opened BUG issue and the security-reports artifact."
+          echo "::error::Security scans reported findings — see this run's job summary and the security-reports artifact."
           exit 1

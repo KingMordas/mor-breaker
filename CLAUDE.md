@@ -56,8 +56,10 @@ optional branch + PR → confirm-merge) and `/release` (gate → version → bui
 > and comment bodies are attacker-controllable, and ingesting them into the agent's context is a
 > **prompt-injection vector** (a spammer commenting on an issue could smuggle instructions). The
 > workflow is now driven by **trusted, locally-typed prompts** through `/perform-activity` — the
-> agent reads **no** issue/comment/attachment text. GitHub Issues may still be used by humans for
-> bug reports; the *agent* simply never auto-ingests them.
+> agent reads **no** issue/comment/attachment text. **GitHub Issues are disabled on the repo
+> entirely**, so there is no issue tracker to ingest, file into, or reconcile: `security.yml`
+> reports to the run's job summary + an artifact (not an issue), and `/release` files/closes
+> nothing. Contributions come as Pull Requests from forks.
 
 1. **Conventional Commits.** Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org/):
    `type(scope): description` — imperative, ~50 chars, no trailing period (e.g.

@@ -1,9 +1,9 @@
 # Contributing to morBreaker
 
 Thanks for your interest! morBreaker is a **personal, spare-time, non-commercial** 2D
-brick-breaker built in Unity 6. Issues, suggestions, and small pull requests are welcome —
-please read the rules below first, because they are non-negotiable constraints that govern
-everything in this repo.
+brick-breaker built in Unity 6. **GitHub Issues are disabled on this repo**, so contributions
+come as small, focused **Pull Requests** from a fork. Please read the rules below first, because
+they are non-negotiable constraints that govern everything in this repo.
 
 ## Ground rules (please respect these)
 
@@ -39,9 +39,11 @@ A few things to keep in mind when you extend beyond the two default targets:
   platform you want the project to ship **officially**, update that workflow too (see *Keeping
   the tooling current* below); otherwise, build and distribute your variant from your own fork.
 - **Avoid scope creep in the core build.** Things like multiplayer/online, server backends,
-  accounts, ads, or monetization run against the project's spirit — discuss in an issue first
+  accounts, ads, or monetization run against the project's spirit — keep them in your own fork
   rather than adding them to the default Windows/WebGL build.
-- **Open an issue first** for anything sizable, so we can agree on scope before you invest time.
+- **For anything sizable, lead with the PR description.** Issues are disabled, so explain the
+  scope and rationale up front in the Pull Request itself (a draft PR is fine) before investing
+  heavily — that way the approach can be discussed before the work is finished.
 
 ## Environment
 
@@ -69,7 +71,8 @@ A few things to keep in mind when you extend beyond the two default targets:
 
 ## Submitting changes
 
-1. Open an issue first for anything beyond a trivial fix, so we can agree on the approach.
+1. For anything beyond a trivial fix, open a **draft Pull Request** early and describe the
+   approach in its body (Issues are disabled) so it can be discussed before you finish.
 2. Keep pull requests **small and focused**; one concern per PR.
 3. Make sure the project **compiles with no errors or new warnings**, and that the game still
    plays from `Assets/Scenes/SampleScene.unity`. If you touch logic covered by tests, run the
@@ -86,8 +89,6 @@ type(scope): imperative description (~50 chars, no trailing period)
 Body explaining WHAT changed and WHY (bullets for multiple items).
 Flag guardrail-relevant touches: new dependencies, any privacy/data-flow
 change, gameplay doc-comment edits, README/CLAUDE doc updates.
-
-Closes #<issue>
 
 Co-Authored-By: <name> <email>
 ```
@@ -110,8 +111,6 @@ carry a `skip-changelog` label instead.
 ## Summary    — what & why
 ## Changes    — bullet list of areas/decisions
 ## Testing    — what was verified (build/play/tests)
-
-Closes #<issue>
 ```
 
 ## How the workflow runs
@@ -126,9 +125,9 @@ release time**, not per-PR — the only PR-time check is the `changelog-preview`
 - The maintainer drives work/branches/releases with two Claude Code skills:
   **`/perform-activity [true|false] | <prompt>`** (do a piece of work from a trusted, locally-typed
   prompt → optionally branch → implement → PR → confirm-merge) and **`/release`** (gates → version
-  bump → build both targets → GitHub Release). The agent reads **no** GitHub issue or comment text
-  — a deliberate prompt-injection safeguard — so human-filed issues are triaged by a person, not
-  auto-ingested by the agent. See [`CLAUDE.md`](CLAUDE.md) → *Commits, changelog & release*.
+  bump → build both targets → GitHub Release). **GitHub Issues are disabled**, and the agent reads
+  **no** issue or comment text — a deliberate prompt-injection safeguard. See
+  [`CLAUDE.md`](CLAUDE.md) → *Commits, changelog & release*.
 
 ### Keeping the tooling current
 
@@ -142,11 +141,6 @@ Because of that, please **keep the skill files in [`.claude/skills/`](.claude/sk
 with reality**, exactly as you would `README.md`/`CLAUDE.md`. If you change the release process,
 the build targets, or the branch/PR flow, update the matching skill in the same change. An
 accurate `/release` skill is what keeps releases reproducible for the next contributor.
-
-## Reporting bugs
-
-Open an issue with: what you did, what you expected, what happened, your platform
-(Windows / WebGL + browser), and the Unity/Editor version. Screenshots or a short clip help.
 
 ## Be kind
 

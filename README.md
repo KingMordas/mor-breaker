@@ -147,10 +147,11 @@ flag are saved to a **local high-score list**. Press **`F1`** any time to see th
 
 ## Contributing
 
-This is a personal, non-commercial learning project, but issues and suggestions are welcome.
-Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) first — it covers the constraints that govern
-all work here (**free resources only**, **no copyrighted/trademarked material**, **no data
-collection**, **Windows + WebGL only**) and the coding conventions.
+This is a personal, non-commercial learning project. **GitHub Issues are disabled**, so there is
+no bug tracker; if you want to build on it, fork the repo and open a Pull Request. Please read
+[`CONTRIBUTING.md`](CONTRIBUTING.md) first — it covers the constraints that govern all work here
+(**free resources only**, **no copyrighted/trademarked material**, **no data collection**,
+**Windows + WebGL only**) and the coding conventions.
 
 ## Built with Claude Code 🤖
 
